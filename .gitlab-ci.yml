@@ -1,0 +1,186 @@
+variables:
+  DOCKER_TLS_CERTDIR: "/certs"
+  SHARED_PATH: /builds/shared/$CI_PROJECT_PATH
+  RT_RESULTS_VERSION: 1.0.0
+  RT_SCENARIO_VERSION: 1.0.4
+  RTM_ADAPTER_VERSION: 1.0.6
+
+stages:
+  - compile
+  - test
+  - documentation
+  - docker
+  - publish
+  - cleanup
+
+.before_script_template: &docker_before_script
+  before_script:
+    - if [ "${GROUP_RT_RESULTS_VERSION}" != "" ]; then RT_RESULTS_VERSION=$GROUP_RT_RESULTS_VERSION; fi
+    - if [ "${GROUP_RT_SCENARIO_VERSION}" != "" ]; then RT_SCENARIO_VERSION=$GROUP_RT_SCENARIO_VERSION; fi
+    - if [ "${GROUP_RTM_ADAPTER_VERSION}" != "" ]; then RTM_ADAPTER_VERSION=$GROUP_RTM_ADAPTER_VERSION; fi
+    - apk add --no-cache git
+    - echo $CI_COMMIT_SHORT_SHA
+    - echo $CI_COMMIT_TAG
+    - PROJECT_VERSION=$CI_COMMIT_SHORT_SHA
+    - if [ "${CI_COMMIT_TAG}" != "" ]; then PROJECT_VERSION=$CI_COMMIT_TAG; fi
+    - IMG_VERSION=$PROJECT_VERSION
+    - if [ "${VERSION}" != "" ]; then IMG_VERSION=$VERSION; fi
+    - export PROJECT_VERSION
+    - export IMG_VERSION
+    - "echo Project version: ${PROJECT_VERSION}"
+
+.before_script_template: &python_before_script
+  before_script:
+    - if [ "${GROUP_RT_RESULTS_VERSION}" != "" ]; then RT_RESULTS_VERSION=$GROUP_RT_RESULTS_VERSION; fi
+    - if [ "${GROUP_RT_SCENARIO_VERSION}" != "" ]; then RT_SCENARIO_VERSION=$GROUP_RT_SCENARIO_VERSION; fi
+    - if [ "${GROUP_RTM_ADAPTER_VERSION}" != "" ]; then RTM_ADAPTER_VERSION=$GROUP_RTM_ADAPTER_VERSION; fi
+    - apt-get install -y make git
+    - echo $CI_COMMIT_SHORT_SHA
+    - echo $CI_COMMIT_TAG
+    - PROJECT_VERSION=$CI_COMMIT_SHORT_SHA
+    - if [ "${CI_COMMIT_TAG}" != "" ]; then PROJECT_VERSION=$CI_COMMIT_TAG; fi
+    - IMG_VERSION=$PROJECT_VERSION
+    - if [ "${VERSION}" != "" ]; then IMG_VERSION=$VERSION; fi
+    - export PROJECT_VERSION
+    - export IMG_VERSION
+    - "echo Project version: ${PROJECT_VERSION}"
+    - pip3 install rt-scenario==${RT_SCENARIO_VERSION} --extra-index-url https://__token__:${GROUP_READ_REGISTRY_TOKEN}@gitlab.rayference.dansaert.be/api/v4/projects/152/packages/pypi/simple --trusted-host gitlab.rayference.dansaert.be
+    - pip3 install rtm-adapter-interface==${RTM_ADAPTER_VERSION} --extra-index-url https://__token__:${GROUP_READ_REGISTRY_TOKEN}@gitlab.rayference.dansaert.be/api/v4/projects/150/packages/pypi/simple --trusted-host gitlab.rayference.dansaert.be
+    - pip3 install rt-results==${RT_RESULTS_VERSION} --extra-index-url https://__token__:${GROUP_READ_REGISTRY_TOKEN}@gitlab.rayference.dansaert.be/api/v4/projects/158/packages/pypi/simple --trusted-host gitlab.rayference.dansaert.be
+
+after_script:
+  - echo "End of CI script"
+
+build_wheel:
+  stage: compile
+  image: python:3.9.4-buster
+  tags:
+    - python
+  <<: *python_before_script
+  script:
+    - git status
+    - git checkout $PROJECT_VERSION
+    - make dist
+  artifacts:
+    paths:
+      - dist
+    expire_in: 1 hour
+
+pytest:
+  stage: test
+  image: python:3.9.4-buster
+  tags:
+    - python
+  <<: *python_before_script
+  needs:
+  script:
+    - pip install -r requirements_dev.txt
+    - make test
+
+coverage:
+  stage: test
+  image: python:3.9.4-buster
+  tags:
+    - python
+  <<: *python_before_script
+  needs:
+  script:
+    - pip install -r requirements_dev.txt
+    - make coverage
+
+doc-coverage:
+  stage: test
+  image: python:3.9.4-buster
+  tags:
+    - python
+  <<: *python_before_script
+  needs:
+  script:
+    - pip install -r requirements_dev.txt
+    - make doc-coverage
+
+documentation:
+  stage: documentation
+  image: python:3.9.4-buster
+  tags:
+    - python
+  <<: *python_before_script
+  needs:
+    - doc-coverage
+  script:
+    - pip install -r requirements_dev.txt
+    - make doc-coverage
+  needs:
+    - doc-coverage
+
+build_image:
+  stage: docker
+  image: docker
+  tags:
+    - docker
+    - mars
+  <<: *docker_before_script
+  dependencies:
+    - build_wheel
+  needs:
+    - pytest
+    - coverage
+    - build_wheel
+  script:
+    - docker build --build-arg RT_RESULTS_VERSION=${RT_RESULTS_VERSION} --build-arg REGISTRY_AUTH_TOKEN=${GROUP_READ_REGISTRY_TOKEN} --build-arg RT_SCENARIO_VERSION=${RT_SCENARIO_VERSION} --build-arg RTM_ADAPTER_VERSION=${RTM_ADAPTER_VERSION} --add-host gitlab.rayference.dansaert.be:10.10.37.15 -t $CI_REGISTRY_IMAGE/the_visitors:${IMG_VERSION} .
+
+push_image:
+  stage: publish
+  image: docker
+  tags:
+    - docker
+    - mars
+  <<: *docker_before_script
+  needs:
+    - build_image
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE/the_visitors:${IMG_VERSION}
+    - docker image rm $CI_REGISTRY_IMAGE/the_visitors:${IMG_VERSION}
+  only:
+    variables:
+      - $VERSION
+      - $CI_COMMIT_TAG
+
+deploy_package:
+  stage: publish
+  image: python:3.9.4-buster
+  tags:
+    - python
+  <<: *python_before_script
+  dependencies:
+    - build_wheel
+  needs:
+    - build_wheel
+    - pytest
+    - coverage
+  script:
+    - pip install -r requirements_dev.txt
+    - export TWINE_PASSWORD=${CI_JOB_TOKEN} 
+    - export TWINE_USERNAME=gitlab-ci-token
+    - python -m twine upload --verbose --repository-url https://gitlab.rayference.dansaert.be/api/v4/projects/${CI_PROJECT_ID}/packages/pypi --cert certs/gitlab.rayference.dansaert.be.pem dist/*
+    - pip install the_visitors --trusted-host gitlab.rayference.dansaert.be --extra-index-url https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.rayference.dansaert.be/api/v4/projects/${CI_PROJECT_ID}/packages/pypi/simple
+  only:
+    variables:
+      - $VERSION
+      - $CI_COMMIT_TAG
+
+clean_image:
+  stage: cleanup
+  image: docker
+  tags:
+    - docker
+    - mars
+  needs:
+    - build_image
+  script:
+    - docker image rm $CI_REGISTRY_IMAGE/the_visitors:${IMG_VERSION}
+  except:
+    variables:
+      - $VERSION
+      - $CI_COMMIT_TAG
