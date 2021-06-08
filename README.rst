@@ -1,20 +1,18 @@
-===================
-The Visitors
-===================
-
-
-
-
+======================
+Visitor Design Pattern
+======================
 
 
 Flexible and complete pytonic implementation of the visitor design pattern
 
 
-
 Features
 --------
 
-* TODO
+ - Implement a visitor design pattern for any data structure
+ - Convenient decorator API
+ - Ready to use accept method for tree-like data structures
+ - Compatible with Attrs
 
 Credits
 -------
