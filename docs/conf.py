@@ -100,7 +100,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'the_visitorsdoc'
+htmlhelp_basename = 'visitor_design_pattern_doc'
 
 
 # -- Options for LaTeX output ------------------------------------------
@@ -138,7 +138,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'the_visitors',
+    (master_doc, 'visitor_design_pattern',
      'Visitor Design Pattern Documentation',
      [author], 1)
 ]
@@ -150,10 +150,10 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'the_visitors',
+    (master_doc, 'visitor_design_pattern',
      'Visitor Design Pattern Documentation',
      author,
-     'the_visitors',
+     'visitor_design_pattern',
      'One line description of project.',
      'Miscellaneous'),
 ]
