@@ -3,143 +3,128 @@
 import enum
 import functools
 import inspect
-from abc import abstractmethod
 from typing import Dict
 
 
-class Visitor():
+ALLOWED_VISIT_MODES = [
+    'prefix',
+    'infix',
+    'suffix',
+]
+
+
+def _visit(self, node, mode, *args, **kwargs):
+    for visitable_type in self.VISITABLE_TYPES[mode]:
+        if isinstance(node, visitable_type):
+            method = type(self).VISITABLE_TYPES[mode][visitable_type]
+            return method(
+                self, 
+                node, 
+                *args, 
+                **kwargs
+            )
+    raise ValueError(f"No suitable {mode} method found for node type {type(node)} in visitor {type(self)}")
+
+def _visit_prefix(self, node, *args, **kwargs):
+    return self._visit(node, 'prefix', *args, **kwargs)
+
+def _visit_infix(self, node, *args, **kwargs):
+    return self._visit(node, 'infix', *args, **kwargs)
     
-    VISITABLE_TYPES: Dict[str, dict] = {
-        'prefix': {},
-        'infix': {},
-        'suffix': {} 
-    }
+def _visit_suffix(self, node, *args, **kwargs):
+    return self._visit(node, 'suffix', *args, **kwargs)
 
-    @classmethod
-    def decorator(cls, mode):
+def _do_nothing(self, *_, **__):
+    pass
 
-        def actual_decorator(method):
-            
-            if not mode in cls.VISITABLE_TYPES:
-                raise ValueError(f"Visit mode {mode} does not exist. Only 'prefix', 'infix' or 'suffix' are available")
+
+class Wrapper():
+                
+    def __init__(self, method) -> None:
+        self.method = method
+        self.arg_spec = inspect.getfullargspec(method)
+    
+    def __call__(self, *args, **kwargs):
+        definitive_args = args
+        if self.arg_spec.varargs is None:
+            definitive_args = args[:len(self.arg_spec.args)]
+        definitive_kwargs = kwargs
+        if self.arg_spec.varkw is None:
+            definitive_kwargs = {
+                key: kwargs[key] for key in self.arg_spec.kwonlyargs
+            }
+        return self.method(*definitive_args, **definitive_kwargs)
+
+
+def visitor(traversal_mode=None):
+
+    if not traversal_mode in ALLOWED_VISIT_MODES:
+        raise ValueError(f"Visit mode {traversal_mode} does not exist. Only 'prefix', 'infix' or 'suffix' are available")
+
+    def actual_class_wrapper(cls):
+
+        cls.VISITABLE_TYPES = {
+            'prefix': {},
+            'infix': {},
+            'suffix': {} 
+        }
+
+        for name, method in cls.__dict__.items():
+            mode = getattr(method, "__traversal_mode", None)
+            if mode is None:
+                continue
             arg_spec = inspect.getfullargspec(method)
             if len(arg_spec.args) < 2:
-                raise ValueError(f"{mode} visitmethod {method} of class {cls} does not provide a node argument to visit")
+                raise ValueError(f"{mode} visitmethod {name} of class {cls} does not provide a node argument to visit")
             visitable_argname = arg_spec.args[1]
             if visitable_argname not in arg_spec.annotations:
-                raise ValueError(f"Argument {visitable_argname} is not type annotated for {mode} visitmethod {method} of class {cls}")
+                raise ValueError(f"Argument {visitable_argname} is not type annotated for {mode} visitmethod {name} of class {cls}")
             type_annotation = arg_spec.annotations[visitable_argname]
-
-            @functools.wraps(method)
-            def wrapper(*args, **kwargs):
-                definitive_args = args
-                if arg_spec.varargs is None:
-                    definitive_args = args[:len(arg_spec.args)]
-                definitive_kwargs = kwargs
-                if arg_spec.varkw is None:
-                    definitive_kwargs = {
-                        key: kwargs[key] for key in arg_spec.kwonlyargs
-                    }
-                return method(*definitive_args, **definitive_kwargs)
             
-            cls.VISITABLE_TYPES[mode][type_annotation] = wrapper
-
-            return method
+            cls.VISITABLE_TYPES[mode][type_annotation] = Wrapper(method)
         
-        return actual_decorator
+        setattr(cls, '_visit', _visit)
+        setattr(cls, 'visit_prefix', _visit_prefix)
+        setattr(cls, 'visit_infix', _visit_infix)
+        setattr(cls, 'visit_suffix', _visit_suffix)
 
-    @classmethod
-    def prefix_decorator(cls):
-        return cls.decorator('prefix')
+        if traversal_mode == 'prefix':
+            setattr(cls, 'visit_infix', _do_nothing)
+            setattr(cls, 'visit_suffix', _do_nothing)
+
+        if traversal_mode == 'infix':
+            setattr(cls, 'visit_prefix', _do_nothing)
+            setattr(cls, 'visit_suffix', _do_nothing)
+
+        if traversal_mode == 'suffix':
+            setattr(cls, 'visit_infix', _do_nothing)
+            setattr(cls, 'visit_prefix', _do_nothing)
+
+        return cls
     
-    @classmethod
-    def infix_decorator(cls):
-        return cls.decorator('infix')
+    return actual_class_wrapper
+
+
+def traverse(traversal_mode):
+
+    if not traversal_mode in ALLOWED_VISIT_MODES:
+        raise ValueError(f"Visit mode {traversal_mode} does not exist. Only 'prefix', 'infix' or 'suffix' are available")
+
+    def actual_decorator(method):
+        method.__traversal_mode = traversal_mode
+        return method
     
-    @classmethod
-    def suffix_decorator(cls):
-        return cls.decorator('suffix')
-        
-    
-    def _visit(self, node, mode, *args, **kwargs):
-        import pprint
-        pprint.pprint(self.VISITABLE_TYPES[mode])
-        for visitable_type in self.VISITABLE_TYPES[mode]:
-            if isinstance(node, visitable_type):
-                method = self.VISITABLE_TYPES[mode][visitable_type]
-                return method(
-                    self, 
-                    node, 
-                    *args, 
-                    **kwargs
-                )
-        raise ValueError(f"No suitable {mode} method found for node type {type(node)} in visitor {type(self)}")
-    
-    def visit_prefix(self, node, *args, **kwargs):
-        return self._visit(node, 'prefix', *args, **kwargs)
-    
-    def visit_infix(self, node, *args, **kwargs):
-        return self._visit(node, 'infix', *args, **kwargs)
-    
-    def visit_suffix(self, node, *args, **kwargs):
-        return self._visit(node, 'suffix', *args, **kwargs)
+    return actual_decorator
 
 
-class PrefixVisitor(Visitor):
+def prefix():
+    return traverse('prefix')
 
-    VISITABLE_TYPES: Dict[str, dict] = {
-        'prefix': {},
-        'infix': {},
-        'suffix': {} 
-    }
+def infix():
+    return traverse("infix")
 
-    @classmethod
-    def decorator(cls):
-        return super().decorator('prefix')
-    
-    def visit_infix(cls, *_, **__):
-        pass
-    
-    def visit_suffix(cls, *_, **__):
-        pass
-
-
-class InfixVisitor(Visitor):
-
-    VISITABLE_TYPES: Dict[str, dict] = {
-        'prefix': {},
-        'infix': {},
-        'suffix': {} 
-    }
-
-    @classmethod
-    def decorator(cls):
-        return super().decorator('infix')
-    
-    def visit_prefix(self, *_, **__):
-        pass
-    
-    def visit_suffix(self, *_, **__):
-        pass
-
-
-class SuffixVisitor(Visitor):
-
-    VISITABLE_TYPES: Dict[str, dict] = {
-        'prefix': {},
-        'infix': {},
-        'suffix': {} 
-    }
-
-    @classmethod
-    def decorator(cls):
-        return super().decorator('suffix')
-    
-    def visit_prefix(self, *_, **__):
-        pass
-    
-    def visit_infix(self, *_, **__):
-        pass
+def suffix():
+    return traverse("suffix")
 
 
 class VisitableInterface():
@@ -162,10 +147,7 @@ class VisitableInterface():
         enum.EnumMeta,
     ]
     
-    def accept(self, visitor: Visitor, parent_res=None):
-        print(visitor)
-        print(visitor.visit_prefix)
-        print(inspect.getfullargspec(visitor.visit_prefix))
+    def accept(self, visitor, parent_res=None):
         prefix_res = visitor.visit_prefix(self, parent_res=parent_res)
         visited_attrs = {}
         for i, (key, value) in enumerate(self.__dict__.items()):
