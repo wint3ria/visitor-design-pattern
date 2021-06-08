@@ -156,7 +156,7 @@ class VisitableInterface():
         prefix_res = visitor.visit_prefix(self, parent_res=parent_res)
         visited_attrs = {}
         for i, (key, value) in enumerate(self.__dict__.items()):
-            if type(value) not in self.DATA_TYPES:
+            if isinstance(value, list) or isinstance(value, VisitableInterface):
                 visited = None
                 if isinstance(value, list):
                     visited = []

@@ -78,6 +78,8 @@ class IncompleteVisitor():
     pass
 
 
+
+
 def test_prettyprint(capsys):
     pp = PrettyPrinter()
     tree.accept(pp)
@@ -94,6 +96,38 @@ def test_incomplete():
     raised = False
     try:
         tree.accept(iv)
+    except ValueError:
+        raised = True
+    if not raised:
+        raise RuntimeError("Should raise a value error")
+
+def test_ill_format1():
+    raised=False
+    try:
+        @visitor(traversal_mode='prefix')
+        class IllformatedVisitor():
+            @prefix()
+            def visit_node_prefix(self, node):
+                pass
+            @traverse(["prefix"])
+            def do_nothing(self, node: IgnoredNodeType):
+                pass
+    except ValueError:
+        raised = True
+    if not raised:
+        raise RuntimeError("Should raise a value error")
+
+def test_ill_format2():
+    raised=False
+    try:
+        @visitor(traversal_mode='prefix')
+        class IllformatedVisitor():
+            @prefix()
+            def visit_node_prefix(self):
+                pass
+            @traverse(["prefix"])
+            def do_nothing(self, node: IgnoredNodeType):
+                pass
     except ValueError:
         raised = True
     if not raised:
