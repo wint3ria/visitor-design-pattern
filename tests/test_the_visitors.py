@@ -78,8 +78,6 @@ class IncompleteVisitor():
     pass
 
 
-
-
 def test_prettyprint(capsys):
     pp = PrettyPrinter()
     tree.accept(pp)
