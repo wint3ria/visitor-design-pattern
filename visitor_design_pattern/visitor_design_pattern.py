@@ -1,9 +1,7 @@
 """Main module."""
 
 import enum
-import functools
 import inspect
-from typing import Dict
 
 
 ALLOWED_VISIT_MODES = [
