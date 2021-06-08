@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use The Visitors in a project::
+To use Visitor Design Pattern in a project::
 
-    import the_visitors
+    

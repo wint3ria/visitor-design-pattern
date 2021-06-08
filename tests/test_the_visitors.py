@@ -2,74 +2,99 @@
 
 """Tests for `py6s_rtm_driver` package."""
 
-import pytest
-import datetime
+from visitor_design_pattern import VisitableInterface, visitor, traverse, prefix, infix, suffix
 
-from click.testing import CliRunner
+class IgnoredNodeType(VisitableInterface):
+    pass
 
-from the_visitors import TheVisitorsAdapter
-from the_visitors import cli
-from rt_scenario import Scenario, Observation, Atmosphere, AtmosphereType, AtmosphericProfile, Surface, SurfaceType, Illumination, Measure, MeasureType
+class MyNode(VisitableInterface):
 
-def test_command_line_interface():
-    """Test the CLI."""
-    runner = CliRunner()
-    result = runner.invoke(cli.main)
-    assert result.exit_code == 0
-    assert 'the_visitors.cli.main' in result.output
-    help_result = runner.invoke(cli.main, ['--help'])
-    assert help_result.exit_code == 0
-    assert '--help  Show this message and exit.' in help_result.output
+    def __init__(self, name, children=[]):
+        self.name = name
+        self.children = children
+        self.ignored = IgnoredNodeType()
 
-def test_basic_scenario():
-    sc = Scenario(
-        name="Rayleigh with AFGL US76 atmospheric profile",
-        observations = [
-            Observation(
-                name="Test",
-                atmosphere=Atmosphere(
-                    name="Rayleigh", 
-                    atmosphere_type=AtmosphereType.RAYLEIGH, 
-                    atmospheric_profile=AtmosphericProfile.US76, 
-                    concentrations={},
-                    levels=None
-                ),
-                surface=Surface(
-                    name="Black Surface",
-                    surface_type=SurfaceType.LAMBERTIAN,
-                    surface_parameters={
-                        "reflectance": 0.0
-                    }
-                ),
-                illumination=Illumination(
-                    name="Illumination",
-                    sza=30.0,
-                    saa=0.0
-                ),
-                measures=[
-                    Measure(
-                        name="Sentinel-2A MSI",
-                        measure_type=MeasureType.BRF_SAT,
-                        vza=45.0,
-                        vaa=0.0,
-                        satellite="Sentinel-2A",
-                        instrument="MSI",
-                        bands=["7", "8"],
-                    ),
-                    Measure(
-                        name="Sentinel-2A MSI",
-                        measure_type=MeasureType.BRF_SAT,
-                        vza=45.0,
-                        vaa=0.0,
-                        satellite="Sentinel-2A",
-                        instrument="MSI",
-                        bands=["7", "8"],
-                    )
-                ]
-            )
-        ]
-    )
+tree = MyNode("A", children=[
+    MyNode("B", children=[
+        MyNode("C"),
+        MyNode("D")
+    ]),
+    MyNode("E"),
+    MyNode("F", children=[
+        MyNode("G")
+    ]),
+    MyNode("H")
+])
 
-    adapter = TheVisitorsAdapter()
-    adapter.validate_scenario(sc)
-    adapter.compute_scenario(sc)
+@visitor()
+class PrettyPrinter():
+
+    def __init__(self) -> None:
+        self.indent_level = ""
+
+    @prefix()
+    def visit_node_prefix(self, node: MyNode):
+        if len(node.children):
+            print(self.indent_level + "<" + node.name)
+        else:
+            print(self.indent_level + "<" + node.name, end='')
+        self.indent_level += "  "
+    
+    @infix()
+    def visit_node_infix(self, node: MyNode):
+        print(",")
+    
+    @suffix()
+    def visit_node_suffix(self, node: MyNode):
+        self.indent_level = self.indent_level[2:]
+        if len(node.children):
+            print("\n" + self.indent_level +  ">", end='')
+        else:
+            print(">", end='')
+    
+    @traverse(["prefix", "infix", "suffix"])
+    def do_nothing(self, node: IgnoredNodeType):
+        pass
+
+
+@visitor(traversal_mode='prefix')
+class PathVisitor():
+
+    def __init__(self) -> None:
+        self.path = []
+    
+    @prefix()
+    def visit_node_prefix(self, node: MyNode):
+        self.path.append(node.name)
+        return self.path
+
+    @traverse(["prefix"])
+    def do_nothing(self, node: IgnoredNodeType):
+        pass
+
+
+@visitor()
+class IncompleteVisitor():
+    pass
+
+
+def test_prettyprint(capsys):
+    pp = PrettyPrinter()
+    tree.accept(pp)
+    captured = capsys.readouterr()
+    assert captured.out == "<A\n  <B\n    <C>,\n    <D>\n  >,\n  <E>,\n  <F\n    <G>\n  >,\n  <H>\n>"
+
+def test_leaf_paths():
+    pv = PathVisitor()
+    prefix, infix, suffix = tree.accept(pv)
+    print(prefix)
+
+def test_incomplete():
+    iv = IncompleteVisitor()
+    raised = False
+    try:
+        tree.accept(iv)
+    except ValueError:
+        raised = True
+    if not raised:
+        raise RuntimeError("Should raise a value error")

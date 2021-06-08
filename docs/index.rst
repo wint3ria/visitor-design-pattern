@@ -1,5 +1,5 @@
-Welcome to The Visitors's documentation!
-======================================
+Welcome to Visitor Design Pattern documentation!
+================================================
 
 .. toctree::
    :maxdepth: 2

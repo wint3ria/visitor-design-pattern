@@ -1,15 +1,18 @@
-"""Main module."""
+"""
+Visitor Design Pattern main module
+
+
+"""
 
 import enum
 import inspect
-
+from collections.abc import Iterable
 
 ALLOWED_VISIT_MODES = [
     'prefix',
     'infix',
     'suffix',
 ]
-
 
 def _visit(self, node, mode, *args, **kwargs):
     for visitable_type in self.VISITABLE_TYPES[mode]:
@@ -23,16 +26,15 @@ def _visit(self, node, mode, *args, **kwargs):
             )
     raise ValueError(f"No suitable {mode} method found for node type {type(node)} in visitor {type(self)}")
 
-def _visit_prefix(self, node, *args, **kwargs):
+def visit_prefix(self, node, *args, **kwargs):
     return self._visit(node, 'prefix', *args, **kwargs)
 
-def _visit_infix(self, node, *args, **kwargs):
+def visit_infix(self, node, *args, **kwargs):
     return self._visit(node, 'infix', *args, **kwargs)
     
-def _visit_suffix(self, node, *args, **kwargs):
+def visit_suffix(self, node, *args, **kwargs):
     return self._visit(node, 'suffix', *args, **kwargs)
-
-def _do_nothing(self, *_, **__):
+def do_nothing(self, *_, **__):
     pass
 
 
@@ -56,9 +58,6 @@ class Wrapper():
 
 def visitor(traversal_mode=None):
 
-    if not traversal_mode in ALLOWED_VISIT_MODES:
-        raise ValueError(f"Visit mode {traversal_mode} does not exist. Only 'prefix', 'infix' or 'suffix' are available")
-
     def actual_class_wrapper(cls):
 
         cls.VISITABLE_TYPES = {
@@ -68,35 +67,36 @@ def visitor(traversal_mode=None):
         }
 
         for name, method in cls.__dict__.items():
-            mode = getattr(method, "__traversal_mode", None)
-            if mode is None:
+            modes = getattr(method, "__traversal_mode", None)
+            if modes is None:
                 continue
             arg_spec = inspect.getfullargspec(method)
             if len(arg_spec.args) < 2:
-                raise ValueError(f"{mode} visitmethod {name} of class {cls} does not provide a node argument to visit")
+                raise ValueError(f"visitmethod {name} of class {cls} does not provide a node argument to visit")
             visitable_argname = arg_spec.args[1]
             if visitable_argname not in arg_spec.annotations:
-                raise ValueError(f"Argument {visitable_argname} is not type annotated for {mode} visitmethod {name} of class {cls}")
+                raise ValueError(f"Argument {visitable_argname} is not type annotated for visitmethod {name} of class {cls}")
             type_annotation = arg_spec.annotations[visitable_argname]
             
-            cls.VISITABLE_TYPES[mode][type_annotation] = Wrapper(method)
+            for mode in modes:
+                cls.VISITABLE_TYPES[mode][type_annotation] = Wrapper(method)
         
         setattr(cls, '_visit', _visit)
-        setattr(cls, 'visit_prefix', _visit_prefix)
-        setattr(cls, 'visit_infix', _visit_infix)
-        setattr(cls, 'visit_suffix', _visit_suffix)
+        setattr(cls, 'visit_prefix', visit_prefix)
+        setattr(cls, 'visit_infix', visit_infix)
+        setattr(cls, 'visit_suffix', visit_suffix)
 
         if traversal_mode == 'prefix':
-            setattr(cls, 'visit_infix', _do_nothing)
-            setattr(cls, 'visit_suffix', _do_nothing)
+            setattr(cls, 'visit_infix', do_nothing)
+            setattr(cls, 'visit_suffix', do_nothing)
 
         if traversal_mode == 'infix':
-            setattr(cls, 'visit_prefix', _do_nothing)
-            setattr(cls, 'visit_suffix', _do_nothing)
+            setattr(cls, 'visit_prefix', do_nothing)
+            setattr(cls, 'visit_suffix', do_nothing)
 
         if traversal_mode == 'suffix':
-            setattr(cls, 'visit_infix', _do_nothing)
-            setattr(cls, 'visit_prefix', _do_nothing)
+            setattr(cls, 'visit_infix', do_nothing)
+            setattr(cls, 'visit_prefix', do_nothing)
 
         return cls
     
@@ -105,11 +105,18 @@ def visitor(traversal_mode=None):
 
 def traverse(traversal_mode):
 
-    if not traversal_mode in ALLOWED_VISIT_MODES:
-        raise ValueError(f"Visit mode {traversal_mode} does not exist. Only 'prefix', 'infix' or 'suffix' are available")
+    if isinstance(traversal_mode, str):
+        traversal_mode = [traversal_mode]
+
+    for m in traversal_mode:
+        if not m in ALLOWED_VISIT_MODES:
+            raise ValueError(f"Visit mode {m} does not exist. Only 'prefix', 'infix' or 'suffix' are available")
 
     def actual_decorator(method):
-        method.__traversal_mode = traversal_mode
+        if hasattr(method, '__traversal_mode'):
+            method.__traversal_mode += traversal_mode
+        else:
+            method.__traversal_mode = traversal_mode
         return method
     
     return actual_decorator

@@ -10,11 +10,11 @@ Stable release
 
 TODO: rework this part.
 
-To install The Visitors, run this command in your terminal:
+To install Visitor Design Pattern, run this command in your terminal:
 
 .. code-block:: console
 
-    $ pip install the_visitors
+    $ pip install visitor-design-pattern
 
 This is the preferred method to install The Visitors, as it will always install the most recent stable release.
 
@@ -34,7 +34,7 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git@gitlab.rayference.dansaert.be:project-x01/the_visitors.git
+    $ git clone git@github.com:wint3ria/visitor-design-pattern.git
 
 Once you have a copy of the source, you can install it with:
 
@@ -43,4 +43,4 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://gitlab.rayference.dansaert.be/project-x01/the_visitors
+.. _Github repo: https://github.com/wint3ria/visitor-design-pattern
