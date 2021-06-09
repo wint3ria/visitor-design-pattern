@@ -124,9 +124,8 @@ This behavior can by redefining the accept method of the user defined visitor:
             """Example custom accept method"""
 
             visitor.visit_prefix(self)
-            visited = []
-            for i, x in enumerate(self.children):
-                res = x.accept(visitor)
+            for i, child in enumerate(self.children):
+                child.accept(visitor)
                 if i < len(value) - 1:
                     visitor.visit_infix(self)
             visitor.visit_suffix(self)
