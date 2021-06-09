@@ -252,6 +252,8 @@ class VisitableInterface():
             if isinstance(value, list):
                 visited = []
                 for j, x in enumerate(value):
+                    if not isinstance(x, VisitableInterface):
+                        continue
                     res = x.accept(visitor, parent_res=prefix_res)
                     if res is not None:
                         visited.append(res)
