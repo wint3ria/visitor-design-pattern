@@ -62,10 +62,10 @@ class _Wrapper():
         definitive_args = args
         if self.arg_spec.varargs is None:
             definitive_args = args[:len(self.arg_spec.args)]
-        definitive_kwargs = kwargs
-        if self.arg_spec.varkw is None:
+        definitive_kwargs = {}
+        if not self.arg_spec.defaults is None:
             definitive_kwargs = {
-                key: kwargs[key] for key in self.arg_spec.kwonlyargs
+                key: kwargs[key] for key in self.arg_spec.args[-len(self.arg_spec.defaults):]
             }
         return self.method(*definitive_args, **definitive_kwargs)
 
