@@ -1,0 +1,19 @@
+context:
+  version: 1.0.9
+package:
+  name: "visitor_design_pattern"
+  version: "{{ version }}"
+build:
+  number: 1
+  script:
+    - python -m pip install --no-deps --ignore-installed --use-feature=in-tree-build --prefix=$PREFIX .
+requirements:
+  build:
+    - pip
+    - pytest-runner
+  run:
+    - Click
+source:
+  path: .
+about:
+  home: https://visitor-design-pattern.readthedocs.io/en/latest/index.html

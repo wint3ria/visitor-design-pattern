@@ -10,9 +10,9 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['Click>=7.0', ]
+requirements = []
 
-setup_requirements = ['pytest-runner', 'setuptools-git-versioning']
+setup_requirements = ['pytest-runner']
 
 test_requirements = ['pytest>=3', ]
 
@@ -41,10 +41,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://gitlab.rayference.dansaert.be/project-x01/drivers/the_visitors',
-    version_config={
-        "template": "{tag}",
-        "dev_template": "{sha}",
-        "dirty_template": "{sha}",
-    },
     zip_safe=False,
+    version='1.0.9'
 )
