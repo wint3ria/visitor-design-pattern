@@ -5,8 +5,9 @@ package:
   version: "{{ version }}"
 build:
   number: 1
+  noarch: python
   script:
-    - python -m pip install --no-deps --ignore-installed --use-feature=in-tree-build --prefix=$PREFIX .
+    - python -m pip install --no-deps --ignore-installed --prefix=$PREFIX .
 requirements:
   build:
     - pip
@@ -17,3 +18,13 @@ source:
   path: .
 about:
   home: https://visitor-design-pattern.readthedocs.io/en/latest/index.html
+
+test:
+  imports:
+    - visitor_design_pattern
+  requires:
+    - pytest
+  source_files:
+    - tests/**/*.py
+  commands:
+    - pytest
