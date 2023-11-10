@@ -42,5 +42,5 @@ setup(
     tests_require=test_requirements,
     url='https://gitlab.rayference.dansaert.be/project-x01/drivers/the_visitors',
     zip_safe=False,
-    version='1.0.9'
+    version='1.0.10'
 )
